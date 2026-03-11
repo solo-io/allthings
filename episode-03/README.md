@@ -97,7 +97,7 @@ metadata:
 spec:
   type: Declarative
   declarative:
-    modelConfig: openai-gpt4
+    modelConfig: default-model-config
     systemMessage: |
       You are a Kubernetes management agent. You help users manage files
       and resources. Before making any changes, explain what you plan to do.
