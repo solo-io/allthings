@@ -92,7 +92,7 @@ Save this as `hitl-agent.yaml`:
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: k8s-agent
+  name: hitl-agent
   namespace: kagent
 spec:
   type: Declarative
@@ -142,7 +142,7 @@ Port-forward the kagent dashboard:
 kubectl port-forward -n kagent svc/kagent-ui 8080:8080
 ```
 
-Open [http://localhost:8080](http://localhost:8080) in your browser. You should see the kagent UI with your **k8s-agent** listed.
+Open [http://localhost:8080](http://localhost:8080) in your browser. You should see the kagent UI with your **hitl-agent** listed.
 
 ---
 
@@ -152,7 +152,7 @@ Now for the fun part. Run through these tests to see human-in-the-loop in action
 
 ### Test 1: Approve a Write
 
-1. Select the **k8s-agent** in the UI
+1. Select the **hitl-agent** in the UI
 2. Type: `Create a file called /tmp/hello.txt with the content "Hello from kagent"`
 3. The agent tries to call `write_file` — execution **pauses**
 4. You'll see **Approve / Reject** buttons appear
