@@ -1,0 +1,57 @@
+# Complete HITL Agent Example for kagent
+# This agent has read-only tools (no approval) and write tools (approval required)
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: hitl-agent
+  namespace: kagent
+spec:
+  description: A Kubernetes agent with human-in-the-loop approval for destructive operations.
+  type: Declarative
+  declarative:
+    modelConfig: default-model-config
+    systemMessage: |
+      You are a Kubernetes management agent. You help users inspect and manage
+      resources in the cluster.
+
+      ## Rules
+
+      1. Before making any changes, explain what you plan to do and why.
+      2. If the user's request is ambiguous, use the ask_user tool to clarify.
+      3. If a tool call is rejected, acknowledge the user's decision and ask
+         how they'd like to proceed instead. Do not retry the same action.
+
+      ## Available Tools
+
+      ### Read-only (no approval needed)
+      - k8s_get_resources: List resources (pods, services, deployments, etc.)
+      - k8s_describe_resource: Get detailed info about a specific resource
+      - k8s_get_pod_logs: Read pod logs
+      - k8s_get_events: View cluster events
+      - k8s_get_resource_yaml: Export resource as YAML
+
+      ### Write (requires your approval)
+      - k8s_apply_manifest: Create or update resources from YAML
+      - k8s_delete_resource: Delete a resource
+      - k8s_patch_resource: Partially update a resource
+    tools:
+      - type: McpServer
+        mcpServer:
+          name: kagent-tool-server
+          kind: RemoteMCPServer
+          apiGroup: kagent.dev
+          toolNames:
+            # Read-only tools (no approval)
+            - k8s_get_resources
+            - k8s_describe_resource
+            - k8s_get_pod_logs
+            - k8s_get_events
+            - k8s_get_resource_yaml
+            # Write tools (approval required)
+            - k8s_apply_manifest
+            - k8s_delete_resource
+            - k8s_patch_resource
+          requireApproval:
+            - k8s_apply_manifest
+            - k8s_delete_resource
+            - k8s_patch_resource

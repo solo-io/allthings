@@ -1,0 +1,34 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: hitl-agent
+  namespace: kagent
+spec:
+  description: A Kubernetes agent with human-in-the-loop approval for destructive operations.
+  type: Declarative
+  declarative:
+    modelConfig: default-model-config
+    systemMessage: |
+      You are a Kubernetes management agent. You help users inspect and manage
+      resources in the cluster. Before making any changes, explain what you
+      plan to do. If the user's request is ambiguous, use the ask_user tool
+      to clarify before proceeding.
+    tools:
+      - type: McpServer
+        mcpServer:
+          name: kagent-tool-server
+          kind: RemoteMCPServer
+          apiGroup: kagent.dev
+          toolNames:
+            - k8s_get_resources
+            - k8s_describe_resource
+            - k8s_get_pod_logs
+            - k8s_get_events
+            - k8s_get_resource_yaml
+            - k8s_apply_manifest
+            - k8s_delete_resource
+            - k8s_patch_resource
+          requireApproval:
+            - k8s_apply_manifest
+            - k8s_delete_resource
+            - k8s_patch_resource
