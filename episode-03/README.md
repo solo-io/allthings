@@ -96,10 +96,10 @@ spec:
             - write_file
 ```
 
-Apply it:
+Create it:
 
 ```bash
-kubectl apply -f hitl-agent.yaml
+kubectl create -f hitl-agent.yaml
 ```
 
 ### What This Configuration Does
