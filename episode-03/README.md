@@ -6,8 +6,8 @@ AI agents that can take action are powerful — but you don't always want them a
 
 By the end of this tutorial, you'll have an agent running on a local Kind cluster that:
 
-- **Reads files** freely (no approval needed)
-- **Pauses for your approval** before writing or deleting files
+- **Reads cluster resources** freely (no approval needed)
+- **Pauses for your approval** before creating, modifying, or deleting resources
 - **Asks you questions** when it needs more information
 
 ---
@@ -84,7 +84,7 @@ Once all pods report `condition met`, move on.
 
 ## Step 3 — Deploy the Agent
 
-This is the core of the tutorial. You'll create an agent with access to filesystem tools, but with **approval gates** on the dangerous ones.
+This is the core of the tutorial. You'll create an agent that uses kagent's **built-in Kubernetes tools**, with **approval gates** on the destructive ones.
 
 Save this as `hitl-agent.yaml`:
 
@@ -95,24 +95,41 @@ metadata:
   name: hitl-agent
   namespace: kagent
 spec:
-  type: Declarative
-  declarative:
-    modelConfig: default-model-config
-    systemMessage: |
-      You are a Kubernetes management agent. You help users manage files
-      and resources. Before making any changes, explain what you plan to do.
-      If the user's request is ambiguous, use the ask_user tool to clarify.
-    tools:
-      - type: McpServer
-        mcpServer:
-          name: filesystem-server
-          toolNames:
-            - read_file
-            - write_file
-            - delete_file
-          requireApproval:
-            - delete_file
-            - write_file
+  modelConfig: default-model-config
+  systemMessage: |
+    You are a Kubernetes management agent. You help users inspect and manage
+    resources in the cluster. Before making any changes, explain what you
+    plan to do. If the user's request is ambiguous, use the ask_user tool
+    to clarify before proceeding.
+  tools:
+    - builtin:
+        name: kagent.tools.k8s.GetResources
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.DescribeResource
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.GetPodLogs
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.GetEvents
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.GetResourceYAML
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.ApplyManifest
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.DeleteResource
+      type: Builtin
+    - builtin:
+        name: kagent.tools.k8s.PatchResource
+      type: Builtin
+  requireApproval:
+    - kagent.tools.k8s.ApplyManifest
+    - kagent.tools.k8s.DeleteResource
+    - kagent.tools.k8s.PatchResource
 ```
 
 Create the agent:
@@ -125,12 +142,17 @@ kubectl create -f hitl-agent.yaml
 
 | Tool | What Happens |
 |------|-------------|
-| `read_file` | Runs immediately — no approval needed |
-| `write_file` | Pauses and waits for you to approve or reject |
-| `delete_file` | Pauses and waits for you to approve or reject |
-| `ask_user` | Built-in — the agent can ask you questions anytime |
+| `GetResources` | Runs immediately — lists pods, services, deployments, etc. |
+| `DescribeResource` | Runs immediately — shows resource details |
+| `GetPodLogs` | Runs immediately — reads pod logs |
+| `GetEvents` | Runs immediately — shows cluster events |
+| `GetResourceYAML` | Runs immediately — exports resource YAML |
+| `ApplyManifest` | **Pauses for approval** — creates or updates resources |
+| `DeleteResource` | **Pauses for approval** — deletes resources |
+| `PatchResource` | **Pauses for approval** — modifies resources |
+| `ask_user` | Built-in on every agent — asks you questions anytime |
 
-The key line is `requireApproval` — any tool listed there will pause execution until you explicitly approve it.
+The key is `requireApproval` — any tool listed there will pause execution until you explicitly approve it. Read-only tools run freely; write operations need your sign-off.
 
 ---
 
@@ -150,35 +172,35 @@ Open [http://localhost:8080](http://localhost:8080) in your browser. You should 
 
 Now for the fun part. Run through these tests to see human-in-the-loop in action.
 
-### Test 1: Approve a Write
+### Test 1: Read Without Approval
 
 1. Select the **hitl-agent** in the UI
-2. Type: `Create a file called /tmp/hello.txt with the content "Hello from kagent"`
-3. The agent tries to call `write_file` — execution **pauses**
-4. You'll see **Approve / Reject** buttons appear
-5. Click **Approve**
-6. The agent writes the file and confirms
+2. Type: `List all pods in the kagent namespace`
+3. The agent calls `GetResources` — it runs **immediately** with no approval prompt
+4. You see the pod listing right away
 
-### Test 2: Reject a Delete
+This shows that read-only tools are not gated.
 
-1. Type: `Delete the file /tmp/hello.txt`
-2. The agent calls `delete_file` — execution **pauses**
-3. Click **Reject** and enter a reason: `I want to keep this file for now`
+### Test 2: Approve a Create
+
+1. Type: `Create a ConfigMap called test-config in the default namespace with the key message set to "hello from kagent"`
+2. The agent calls `ApplyManifest` — execution **pauses**
+3. You'll see **Approve / Reject** buttons appear, along with the YAML it wants to apply
+4. Click **Approve**
+5. The agent creates the ConfigMap and confirms
+
+### Test 3: Reject a Delete
+
+1. Type: `Delete the ConfigMap test-config in the default namespace`
+2. The agent calls `DeleteResource` — execution **pauses**
+3. Click **Reject** and enter a reason: `I want to keep this ConfigMap for now`
 4. The agent sees your reason and responds accordingly — it doesn't delete anything
 
-### Test 3: Agent Asks You a Question
+### Test 4: Agent Asks You a Question
 
-1. Type: `Set up a config file for my application`
-2. The request is vague, so the agent calls `ask_user` to clarify
-3. You'll see a question appear in the UI (e.g., "Which database should I use?")
-4. Answer the question and the agent continues with your input
-
-### Test 4: Batch Approvals
-
-1. Type: `Create three files: /tmp/a.txt, /tmp/b.txt, and /tmp/c.txt`
-2. The agent generates multiple `write_file` calls at once
-3. All pending approvals appear together
-4. You can approve or reject each one individually
+1. Type: `Set up a namespace for my application`
+2. The request is vague, so the agent calls `ask_user` to clarify (e.g., "What should the namespace be called?")
+3. Answer the question and the agent continues with your input
 
 ---
 
@@ -213,6 +235,6 @@ kind delete cluster --name kagent-hitl
 ## Key Takeaways
 
 - **`requireApproval`** is all you need — list the tools that need human sign-off
+- **Read-only tools run freely**, write operations pause for approval
 - **`ask_user`** is built-in on every agent — no extra config required
 - **Rejection reasons** are sent back to the LLM so it can adjust its approach
-- **Batch approvals** let you review multiple tool calls at once
