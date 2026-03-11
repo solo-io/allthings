@@ -84,7 +84,7 @@ Once all pods report `condition met`, move on.
 
 ## Step 3 — Deploy the Agent
 
-This is the core of the tutorial. You'll create an agent that uses kagent's **built-in Kubernetes tools**, with **approval gates** on the destructive ones.
+This is the core of the tutorial. You'll create an agent that uses kagent's **built-in Kubernetes tools** (served via the kagent tool server), with **approval gates** on the destructive ones.
 
 Save this as `hitl-agent.yaml`:
 
@@ -95,41 +95,34 @@ metadata:
   name: hitl-agent
   namespace: kagent
 spec:
-  modelConfig: default-model-config
-  systemMessage: |
-    You are a Kubernetes management agent. You help users inspect and manage
-    resources in the cluster. Before making any changes, explain what you
-    plan to do. If the user's request is ambiguous, use the ask_user tool
-    to clarify before proceeding.
-  tools:
-    - builtin:
-        name: kagent.tools.k8s.GetResources
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.DescribeResource
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.GetPodLogs
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.GetEvents
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.GetResourceYAML
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.ApplyManifest
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.DeleteResource
-      type: Builtin
-    - builtin:
-        name: kagent.tools.k8s.PatchResource
-      type: Builtin
-  requireApproval:
-    - kagent.tools.k8s.ApplyManifest
-    - kagent.tools.k8s.DeleteResource
-    - kagent.tools.k8s.PatchResource
+  description: A Kubernetes agent with human-in-the-loop approval for destructive operations.
+  type: Declarative
+  declarative:
+    modelConfig: default-model-config
+    systemMessage: |
+      You are a Kubernetes management agent. You help users inspect and manage
+      resources in the cluster. Before making any changes, explain what you
+      plan to do. If the user's request is ambiguous, use the ask_user tool
+      to clarify before proceeding.
+    tools:
+      - type: McpServer
+        mcpServer:
+          name: kagent-tool-server
+          kind: RemoteMCPServer
+          apiGroup: kagent.dev
+          toolNames:
+            - k8s_get_resources
+            - k8s_describe_resource
+            - k8s_get_pod_logs
+            - k8s_get_events
+            - k8s_get_resource_yaml
+            - k8s_apply_manifest
+            - k8s_delete_resource
+            - k8s_patch_resource
+          requireApproval:
+            - k8s_apply_manifest
+            - k8s_delete_resource
+            - k8s_patch_resource
 ```
 
 Create the agent:
@@ -142,14 +135,14 @@ kubectl create -f hitl-agent.yaml
 
 | Tool | What Happens |
 |------|-------------|
-| `GetResources` | Runs immediately — lists pods, services, deployments, etc. |
-| `DescribeResource` | Runs immediately — shows resource details |
-| `GetPodLogs` | Runs immediately — reads pod logs |
-| `GetEvents` | Runs immediately — shows cluster events |
-| `GetResourceYAML` | Runs immediately — exports resource YAML |
-| `ApplyManifest` | **Pauses for approval** — creates or updates resources |
-| `DeleteResource` | **Pauses for approval** — deletes resources |
-| `PatchResource` | **Pauses for approval** — modifies resources |
+| `k8s_get_resources` | Runs immediately — lists pods, services, deployments, etc. |
+| `k8s_describe_resource` | Runs immediately — shows resource details |
+| `k8s_get_pod_logs` | Runs immediately — reads pod logs |
+| `k8s_get_events` | Runs immediately — shows cluster events |
+| `k8s_get_resource_yaml` | Runs immediately — exports resource YAML |
+| `k8s_apply_manifest` | **Pauses for approval** — creates or updates resources |
+| `k8s_delete_resource` | **Pauses for approval** — deletes resources |
+| `k8s_patch_resource` | **Pauses for approval** — modifies resources |
 | `ask_user` | Built-in on every agent — asks you questions anytime |
 
 The key is `requireApproval` — any tool listed there will pause execution until you explicitly approve it. Read-only tools run freely; write operations need your sign-off.
@@ -176,7 +169,7 @@ Now for the fun part. Run through these tests to see human-in-the-loop in action
 
 1. Select the **hitl-agent** in the UI
 2. Type: `List all pods in the kagent namespace`
-3. The agent calls `GetResources` — it runs **immediately** with no approval prompt
+3. The agent calls `k8s_get_resources` — it runs **immediately** with no approval prompt
 4. You see the pod listing right away
 
 This shows that read-only tools are not gated.
@@ -184,7 +177,7 @@ This shows that read-only tools are not gated.
 ### Test 2: Approve a Create
 
 1. Type: `Create a ConfigMap called test-config in the default namespace with the key message set to "hello from kagent"`
-2. The agent calls `ApplyManifest` — execution **pauses**
+2. The agent calls `k8s_apply_manifest` — execution **pauses**
 3. You'll see **Approve / Reject** buttons appear, along with the YAML it wants to apply
 4. Click **Approve**
 5. The agent creates the ConfigMap and confirms
@@ -192,7 +185,7 @@ This shows that read-only tools are not gated.
 ### Test 3: Reject a Delete
 
 1. Type: `Delete the ConfigMap test-config in the default namespace`
-2. The agent calls `DeleteResource` — execution **pauses**
+2. The agent calls `k8s_delete_resource` — execution **pauses**
 3. Click **Reject** and enter a reason: `I want to keep this ConfigMap for now`
 4. The agent sees your reason and responds accordingly — it doesn't delete anything
 
