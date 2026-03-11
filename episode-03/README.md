@@ -34,14 +34,7 @@ kubectl cluster-info --context kind-kagent-hitl
 
 ## Step 2: Install kagent
 
-Add the kagent Helm repo and install:
-
-```bash
-helm repo add kagent https://kagent-dev.github.io/kagent
-helm repo update
-```
-
-Install the kagent CRDs first:
+Install the kagent CRDs:
 
 ```bash
 helm install kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds \
@@ -49,11 +42,19 @@ helm install kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds \
     --create-namespace
 ```
 
-Then install kagent:
+Set your OpenAI API key:
 
 ```bash
-helm install kagent kagent/kagent \
-  -n kagent
+export OPENAI_API_KEY="your-api-key-here"
+```
+
+Install the kagent Helm chart:
+
+```bash
+helm install kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent \
+    --namespace kagent \
+    --set providers.default=openAI \
+    --set providers.openAI.apiKey=$OPENAI_API_KEY
 ```
 
 Wait for all pods to be ready:
@@ -62,41 +63,7 @@ Wait for all pods to be ready:
 kubectl wait --for=condition=ready pod --all -n kagent --timeout=120s
 ```
 
-## Step 3: Configure Your LLM API Key
-
-Create a secret with your API key:
-
-```bash
-kubectl create secret generic llm-api-key \
-  -n kagent \
-  --from-literal=api-key='YOUR_API_KEY_HERE'
-```
-
-## Step 4: Create the Model Configuration
-
-Save the following as `model-config.yaml`:
-
-```yaml
-apiVersion: kagent.dev/v1alpha2
-kind: ModelConfig
-metadata:
-  name: openai-gpt4
-  namespace: kagent
-spec:
-  apiKeySecretRef:
-    name: llm-api-key
-    key: api-key
-  provider: OpenAI
-  model: gpt-4o
-```
-
-Apply it:
-
-```bash
-kubectl apply -f model-config.yaml
-```
-
-## Step 5: Deploy the Human-in-the-Loop Agent
+## Step 3: Deploy the Human-in-the-Loop Agent
 
 This is the core of the demo. The agent has access to filesystem tools but **requires approval** for destructive operations.
 
@@ -144,17 +111,17 @@ kubectl apply -f hitl-agent.yaml
 | `delete_file` | Pauses and waits for user approval |
 | `ask_user` | Built-in, always available — agent can ask you questions |
 
-## Step 6: Access the kagent UI
+## Step 4: Access the kagent UI
 
 Port-forward the kagent UI:
 
 ```bash
-kubectl port-forward svc/kagent-ui -n kagent 8080:80
+kubectl port-forward -n kagent svc/kagent-ui 8080:8080
 ```
 
 Open your browser to [http://localhost:8080](http://localhost:8080).
 
-## Step 7: Test the Human-in-the-Loop Flow
+## Step 5: Test the Human-in-the-Loop Flow
 
 ### Test 1: Tool Approval
 
