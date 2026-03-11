@@ -41,12 +41,19 @@ helm repo add kagent https://kagent-dev.github.io/kagent
 helm repo update
 ```
 
-Install kagent into the `kagent` namespace:
+Install the kagent CRDs first:
+
+```bash
+helm install kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds \
+    --namespace kagent \
+    --create-namespace
+```
+
+Then install kagent:
 
 ```bash
 helm install kagent kagent/kagent \
-  -n kagent \
-  --create-namespace
+  -n kagent
 ```
 
 Wait for all pods to be ready:
