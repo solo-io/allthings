@@ -1,4 +1,3 @@
-# Human-in-the-Loop: Building AI Agents You Can Actually Trust on Kubernetes
 
 **By Sebastian Maniak**
 
